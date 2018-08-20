@@ -5,16 +5,15 @@
 #include <PID_v1.h>
  
 
-
+//Serial receive 
 char  ReplyBuffer[] = "hello";       // a string to send back
-//ttttttttt
-char *replyPtr = &ReplyBuffer[0];
-char c;
-#define MAX_BUF (64)
-char buffer[MAX_BUF];
-int sofar=0;
+char *replyPtr = &ReplyBuffer[0]; //reply ptr to the array of chars
+char c; //to store byte by byte
+#define MAX_BUF (64) // maximum buffer size
+char buffer[MAX_BUF]; //buffer to receive data serially
+int sofar=0; //index (order of byte)
 
-//MOTOR DRIVER
+//MOTOR DRIVER pins
 #define Dir1 2
 #define PWM1 3 
 #define Dir2 4
@@ -22,7 +21,6 @@ int sofar=0;
 
 //Data from labview
 long ReceivedData[6];
-
 
 int MineR, MineL;
 float yaw, DeltaDistance;
@@ -41,11 +39,9 @@ int intSetpoint;
 int roll, newroll, nnewroll;
 int value, p;
 
-
 //RST
 #define RSTSensorsPin A5
 int RSTSensors = 1;
-
 
 
 
@@ -83,14 +79,15 @@ void loop()
   
    /*ETHERNET*/
    //READ
-  int packetSize = Udp.parsePacket();
-  if (packetSize) 
-  {IPAddress remote = Udp.remoteIP();
+  int packetSize = Udp.parsePacket(); //get num of bytes at port
+  if (packetSize)  //if it's not zero, read the packet
+  {
+   IPAddress remote = Udp.remoteIP(); //get remote IP
     Serial.print("port ");
    Serial.println(Udp.remotePort());
     //read the packet into packetBufffer
    Udp.read(packetBuffer, 64);
-   ParseString(packetBuffer);
+   ParseString(packetBuffer); //Parse the string to use the data for control later in the code
   // Serial.println("Contents:");
   // Serial.println(packetBuffer);
  }
@@ -99,18 +96,19 @@ void loop()
 
  //SERIAL READ
    while (Serial.available() > 0) 
-   { // if something is available
-     c = Serial.read(); // get it
+   { //if there's a byte at serial pin, start reading 
+     c = Serial.read(); // get byte
      //Serial.print(c);  // repeat it back so I know you got the message
     if (sofar < MAX_BUF - 1) 
     {
       buffer[sofar++] = c; // store it
     }
     if (c == '\n') 
-    {buffer[sofar] = 0; // end the buffer so string functions work right
+    {
+     buffer[sofar] = 0; // end the buffer so string functions work right
      // Serial.print(F("\r\n"));  // echo a return character for humans
       replyPtr = &buffer[0];
-      ready();
+      ready();//set sofar to 0
     }
   }
   //END OF SERIAL READ
@@ -120,7 +118,7 @@ void loop()
   //PID
   intSetpoint = (int)Setpoint; 
   replyStr = String(replyPtr);
-  roll = (replyStr.substring(0, replyStr.indexOf(','))).toFloat();
+  roll = (replyStr.substring(0, replyStr.indexOf(','))).toFloat(); //roll represents the yaw according to the IMU position in the robot
  // Serial.println(replyPtr);
  // Serial.print("roll"); Serial.println(roll);
 
@@ -133,12 +131,13 @@ digitalWrite(RSTSensorsPin, LOW);
 
  
 if(PIDon)
-{  
+{  //Adjust joystick signal
       PIDRun();   
       
 }
 else
 {
+//Write joystick signal directly
 /*MOTION*/
  digitalWrite(Dir1,ReceivedData[0]);
  analogWrite(PWM1, ReceivedData[1]);
@@ -151,7 +150,7 @@ else
 ////////////////////
 /*UDP Send*/
 //////////////////
-//   rPtr = ConcatenateStringToSend(counter, DeltaCounter, MineR,MineL, distanceR ,distanceL, 0, 0);
+
    Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
    Udp.write(replyPtr);
    Udp.endPacket();
